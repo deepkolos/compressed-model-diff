@@ -1,0 +1,24 @@
+{
+  "name": "compressed-model-diff",
+  "version": "1.0.0",
+  "description": "用于对比模型压缩后效果",
+  "author": "DeepKolos<deepkolos@qq.com>",
+  "scripts": {
+    "dev": "vite",
+    "build": "vuedx-typecheck . && vite build",
+    "serve": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.125.2",
+    "vue": "^3.0.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^1.1.4",
+    "@vue/compiler-sfc": "^3.0.5",
+    "@vuedx/typecheck": "^0.6.0",
+    "@vuedx/typescript-plugin-vue": "^0.6.0",
+    "less": "^4.1.1",
+    "typescript": "^4.1.3",
+    "vite": "^2.0.0-beta.65"
+  }
+}
