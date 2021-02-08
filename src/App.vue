@@ -73,7 +73,7 @@ html,
     pointer-events: none;
 
     &.enter {
-      pointer-events: unset;
+      pointer-events: all;
     }
   }
 
@@ -100,7 +100,10 @@ html,
         {{ mode }}
       </div>
     </div>
-    <div><input type="checkbox" v-model="modeCfg.wireframe" />网格</div>
+    <div>
+      <input type="checkbox" v-model="modeCfg.wireframe" />网格
+      <input type="checkbox" v-model="modeCfg.point" />顶点
+    </div>
     <input
       class="slider"
       type="range"
@@ -138,7 +141,6 @@ import { ref, onMounted, reactive, watchEffect } from 'vue';
 import {
   AmbientLight,
   DirectionalLight,
-  LineBasicMaterial,
   Mesh,
   Object3D,
   OrthographicCamera,
@@ -152,15 +154,21 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 // @ts-ignore
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module';
 
 export default {
   setup() {
+    const { innerWidth: w, innerHeight: h } = window;
+    // const baseUrl = 'http://192.168.10.140:8080/';
+    const baseUrl = 'http://127.0.0.1:8080/';
+    const gltfLoader = new GLTFLoader();
+
     const canvas = ref<HTMLCanvasElement>();
     const modeCfg = reactive({
       wireframe: false,
+      point: false,
       slide: 50,
       curr: 'slide',
       list: ['diff', 'slide', 'onion'],
@@ -169,26 +177,42 @@ export default {
       left: '',
       right: '',
       can: '',
+      leftFile: baseUrl + 'PrimaryIonDrive.glb',
+      rightFile: baseUrl + 'PrimaryIonDrive-EXT_MESH_QUANTIZATION.glb',
+    });
+    const modelUpdate = reactive({
+      original: 0,
+      diff: 0,
     });
 
     const onDiffModelDrop = (e: DragEvent) => {
       e.preventDefault();
-      drop.left = '';
+      if (e.dataTransfer) {
+        const file = e.dataTransfer.files.item(0);
+        if (file) {
+          drop.rightFile = URL.createObjectURL(file);
+        }
+      }
+      drop.right = '';
+      drop.can = '';
     };
     const onOriginalModelDrop = (e: DragEvent) => {
       e.preventDefault();
+      if (e.dataTransfer) {
+        const file = e.dataTransfer.files.item(0);
+        if (file) {
+          drop.leftFile = URL.createObjectURL(file);
+        }
+      }
       drop.left = '';
+      drop.can = '';
     };
 
+    window.addEventListener('dragover', e => e.preventDefault());
     window.addEventListener('dragenter', () => (drop.can = 'enter'));
     window.addEventListener('dragleave', () => {
       if (!drop.left && !drop.right) drop.can = '';
     });
-
-    const { innerWidth: w, innerHeight: h } = window;
-    // const baseUrl = 'http://192.168.10.140:8080/';
-    const baseUrl = 'http://127.0.0.1:8080/';
-    const gltfLoader = new GLTFLoader();
 
     gltfLoader.setMeshoptDecoder(MeshoptDecoder);
 
@@ -318,24 +342,6 @@ export default {
     };
 
     onMounted(async () => {
-      const t = Date.now();
-      const [originalModel, diffModel] = await Promise.all(
-        [
-          // baseUrl + 'LV_M20088-iphone678.glb',
-          // // baseUrl + 'LV_M20088-iphone678-mesh-opt.glb',
-          // baseUrl + 'LV_M20088-iphone678-mesh-quantization.glb',
-          // baseUrl + 'PrimaryIonDrive.glb',
-          // baseUrl + 'PrimaryIonDrive-EXT_MESH_QUANTIZATION.glb',
-          // baseUrl + 'LV_M20088-light-x10.glb',
-          // baseUrl + 'LV_M20088-light-x10-EXT_MESH_QUANTIZATION.glb',
-          // baseUrl + 'LV-20088.glb',
-          // baseUrl + 'LV-20088-EXT_MESH_QUANTIZATION.glb',
-          baseUrl + 'LV-20088-no-tex.glb',
-          baseUrl + 'LV-20088-no-tex-EXT_MESH_QUANTIZATION.glb',
-        ].map(i => gltfLoader.loadAsync(i)),
-      );
-      console.log('load models', Date.now() - t);
-
       const renderer = new WebGL1Renderer({
         canvas: canvas.value,
         antialias: true,
@@ -368,35 +374,63 @@ export default {
       const diffModeScene = createDiffModeScene(originalTarget, diffTarget);
       const slideModeScene = createSlideModeScene(originalTarget, diffTarget);
       const onionModeScene = createOnionModeScene(originalTarget, diffTarget);
-      originalScene.add(originalModel.scene);
-      diffScene.add(diffModel.scene);
+      let originalModel: GLTF;
+      let diffModel: GLTF;
 
-      const lineMaterial = new LineBasicMaterial({
-        // 线的颜色
-        color: '#57d8ff',
-        transparent: true,
-        linewidth: 5,
-        opacity: 1.0,
-        //depthTest: true,
+      watchEffect(() => {
+        gltfLoader.loadAsync(drop.leftFile).then(model => {
+          if (originalModel) originalScene.remove(originalModel.scene);
+          originalModel = model;
+          originalScene.add(model.scene);
+          modelUpdate.original++;
+        });
       });
-      //解决z-flighting
-      lineMaterial.polygonOffset = true;
-      lineMaterial.depthTest = true;
-      lineMaterial.polygonOffsetFactor = 1;
-      lineMaterial.polygonOffsetUnits = 1.0;
+
+      watchEffect(async () => {
+        gltfLoader.loadAsync(drop.rightFile).then(model => {
+          if (diffModel) diffScene.remove(diffModel.scene);
+          diffModel = model;
+          diffScene.add(model.scene);
+          modelUpdate.diff++;
+        });
+      });
 
       watchEffect(() => {
         const walker = (child: Object3D) => {
           if (child instanceof Mesh && child.material) {
             // @ts-ignore
+            child.material;
+            // @ts-ignore
             child.material.wireframe = modeCfg.wireframe;
             // @ts-ignore
+            // child.material.flatShading = modeCfg.wireframe;
+            // @ts-ignore
+            // child.material.vertexColors = modeCfg.wireframe;
             // child.material.map = null;
           }
         };
-        originalModel.scene.traverse(walker);
-        diffModel.scene.traverse(walker);
+        // 建立依赖关系
+        console.log(modelUpdate.original, modelUpdate.diff);
+        originalModel?.scene.traverse(walker);
+        originalModel?.scene.traverse(walker);
       });
+
+      // const originalPoints = new Group();
+      // const diffPoints = new Group();
+      // // setup points scene
+      // let maxLen = 1;
+      // const walker = (child: Object3D, group: Group) => {
+      //   if (child instanceof Mesh) {
+      //     if (maxLen > 0) {
+      //       group.add(new Points(child.geometry, pointMaterial));
+      //       maxLen--;
+      //     }
+      //   }
+      // };
+      // originalModel.scene.traverse(i => walker(i, originalPoints));
+      // diffModel.scene.traverse(i => walker(i, diffPoints));
+      // originalScene.add(originalPoints);
+      // diffModeScene.add(diffPoints);
 
       // setup lights
       originalScene.add(new AmbientLight(0xffffff, 1.0)); // can't share lights between scenes
