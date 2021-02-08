@@ -102,7 +102,7 @@ html,
     </div>
     <div>
       <input type="checkbox" v-model="modeCfg.wireframe" />网格
-      <input type="checkbox" v-model="modeCfg.point" />顶点
+      <!-- <input type="checkbox" v-model="modeCfg.point" />顶点-->
     </div>
     <input
       class="slider"
@@ -412,7 +412,7 @@ export default {
         // 建立依赖关系
         console.log(modelUpdate.original, modelUpdate.diff);
         originalModel?.scene.traverse(walker);
-        originalModel?.scene.traverse(walker);
+        diffModel?.scene.traverse(walker);
       });
 
       // const originalPoints = new Group();
