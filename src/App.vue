@@ -31,6 +31,11 @@ html,
   white-space: nowrap;
   color: black;
   text-decoration: none;
+  text-shadow: 0 0 4px white;
+  // color: white;
+  // mix-blend-mode: difference;
+  // background-clip: text;
+  // -webkit-background-clip: text;
 }
 
 .canvas {
@@ -101,6 +106,39 @@ html,
   }
 }
 
+.info {
+  &-can {
+    display: grid;
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    grid-template-columns: repeat(3, auto);
+    // grid-template-rows: repeat(4, 20px);
+    grid-gap: 10px;
+    background-color: white;
+    padding: 5px;
+    font-size: small;
+    opacity: 0.3;
+    transition: opacity ease 0.33s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &-first {
+    grid-column-start: 2;
+  }
+
+  &-metrics {
+    text-align: right;
+
+    &::after {
+      content: ':';
+    }
+  }
+}
+
 #wireframe-checkbox {
   margin-right: 5px;
 }
@@ -145,6 +183,24 @@ html,
       step="1"
       v-model="modeCfg.slide"
     />
+  </div>
+
+  <div class="info-can">
+    <div class="info-first">left</div>
+    <div>right</div>
+
+    <div class="info-metrics">size</div>
+    <div>{{ (modelInfo.original.size / 1024 / 1024).toFixed(2) }}MB</div>
+    <div>{{ (modelInfo.diff.size / 1024 / 1024).toFixed(2) }}MB</div>
+    <div class="info-metrics">objects</div>
+    <div>{{ modelInfo.original.objects }}</div>
+    <div>{{ modelInfo.diff.objects }}</div>
+    <div class="info-metrics">vertices</div>
+    <div>{{ modelInfo.original.vertices }}</div>
+    <div>{{ modelInfo.diff.vertices }}</div>
+    <div class="info-metrics">triangles</div>
+    <div>{{ modelInfo.original.triangles }}</div>
+    <div>{{ modelInfo.diff.triangles }}</div>
   </div>
 
   <div class="drop-can" :class="drop.can" draggable="false">
@@ -196,7 +252,6 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module';
 
 export default {
   setup() {
-    const { innerWidth: w, innerHeight: h } = window;
     // const baseUrl = 'http://192.168.10.140:8080/';
     const baseUrl = 'http://127.0.0.1:8080/';
     const gltfLoader = new GLTFLoader();
@@ -218,6 +273,20 @@ export default {
     const modelUpdate = reactive({
       original: 0,
       diff: 0,
+    });
+    const modelInfo = reactive({
+      original: {
+        size: 0,
+        objects: 0,
+        vertices: 0,
+        triangles: 0,
+      },
+      diff: {
+        size: 0,
+        objects: 0,
+        vertices: 0,
+        triangles: 0,
+      },
     });
 
     const onDiffModelDrop = (e: DragEvent) => {
@@ -397,6 +466,7 @@ export default {
     };
 
     onMounted(async () => {
+      const { innerWidth: w, innerHeight: h } = window;
       gltfLoader.setMeshoptDecoder(MeshoptDecoder);
       const renderer = new WebGL1Renderer({
         canvas: canvas.value,
@@ -406,6 +476,14 @@ export default {
       renderer.setSize(w, h);
       renderer.setPixelRatio(devicePixelRatio);
       renderer.outputEncoding = sRGBEncoding;
+
+      window.addEventListener('resize', () => {
+        const { innerWidth: w, innerHeight: h } = window;
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      });
 
       const drawRect = new Vector2();
       renderer.getDrawingBufferSize(drawRect);
@@ -434,59 +512,69 @@ export default {
       let diffModel: GLTF;
 
       watchEffect(() => {
-        gltfLoader.loadAsync(drop.leftFile).then(model => {
-          if (originalModel) originalScene.remove(originalModel.scene);
-          originalModel = model;
-          originalScene.add(model.scene);
-          modelUpdate.original++;
-        });
+        gltfLoader
+          .loadAsync(drop.leftFile, e => (modelInfo.original.size = e.total))
+          .then(model => {
+            if (originalModel) originalScene.remove(originalModel.scene);
+            originalModel = model;
+            originalScene.add(model.scene);
+            modelUpdate.original++;
+          });
       });
 
       watchEffect(async () => {
-        gltfLoader.loadAsync(drop.rightFile).then(model => {
-          if (diffModel) diffScene.remove(diffModel.scene);
-          diffModel = model;
-          diffScene.add(model.scene);
-          modelUpdate.diff++;
-        });
+        gltfLoader
+          .loadAsync(drop.rightFile, e => (modelInfo.diff.size = e.total))
+          .then(model => {
+            if (diffModel) diffScene.remove(diffModel.scene);
+            diffModel = model;
+            diffScene.add(model.scene);
+            modelUpdate.diff++;
+          });
       });
 
       watchEffect(() => {
-        const walker = (child: Object3D) => {
+        const originalInfo = {
+          objects: 0,
+          vertices: 0,
+          triangles: 0,
+        };
+        const diffInfo = {
+          objects: 0,
+          vertices: 0,
+          triangles: 0,
+        };
+
+        const walker = (child: Object3D, info: typeof originalInfo) => {
           if (child instanceof Mesh && child.material) {
             // @ts-ignore
-            child.material;
-            // @ts-ignore
             child.material.wireframe = modeCfg.wireframe;
-            // @ts-ignore
-            // child.material.flatShading = modeCfg.wireframe;
-            // @ts-ignore
-            // child.material.vertexColors = modeCfg.wireframe;
-            // child.material.map = null;
+          }
+
+          // 统计顶点，三角形，object数目
+          info.objects++;
+          if (child instanceof Mesh) {
+            const geometry = child.geometry;
+            if (geometry.isBufferGeometry) {
+              info.vertices += geometry.attributes.position.count;
+
+              if (geometry.index !== null) {
+                info.triangles += geometry.index.count / 3;
+              } else {
+                info.triangles += geometry.attributes.position.count / 3;
+              }
+            }
           }
         };
         // 建立响应依赖的关系，因为reactive里面存储的对象也会被响应式化，但是由于场景是是否大的一棵树，所以不适合
         console.log(modelUpdate.original, modelUpdate.diff);
-        originalModel?.scene.traverse(walker);
-        diffModel?.scene.traverse(walker);
-      });
 
-      // const originalPoints = new Group();
-      // const diffPoints = new Group();
-      // // setup points scene
-      // let maxLen = 1;
-      // const walker = (child: Object3D, group: Group) => {
-      //   if (child instanceof Mesh) {
-      //     if (maxLen > 0) {
-      //       group.add(new Points(child.geometry, pointMaterial));
-      //       maxLen--;
-      //     }
-      //   }
-      // };
-      // originalModel.scene.traverse(i => walker(i, originalPoints));
-      // diffModel.scene.traverse(i => walker(i, diffPoints));
-      // originalScene.add(originalPoints);
-      // diffModeScene.add(diffPoints);
+        originalModel?.scene.traverse(obj => walker(obj, originalInfo));
+        diffModel?.scene.traverse(obj => walker(obj, diffInfo));
+
+        modelInfo.original = { ...modelInfo.original, ...originalInfo };
+        modelInfo.diff = { ...modelInfo.diff, ...diffInfo };
+      });
 
       // setup lights
       originalScene.add(new AmbientLight(0xffffff, 1.0)); // can't share lights between scenes
@@ -521,6 +609,7 @@ export default {
       canvas,
       modeCfg,
       drop,
+      modelInfo,
       onDiffModelDrop,
       onOriginalModelDrop,
     };
