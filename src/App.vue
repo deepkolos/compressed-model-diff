@@ -10,6 +10,7 @@ html,
 .canvas {
   width: 100%;
   height: 100%;
+  user-select: none;
 }
 
 #app {
@@ -17,6 +18,19 @@ html,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
+}
+
+.title {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  font-size: larger;
+  width: min-content;
+  white-space: nowrap;
+  color: black;
+  text-decoration: none;
 }
 
 .canvas {
@@ -27,16 +41,17 @@ html,
   position: absolute;
   right: 0;
   left: 0;
-  bottom: 10px;
+  bottom: 15px;
   margin: 0 auto;
   width: min-content;
+  padding: 5px;
 }
 
 .mode {
   flex: 1;
   cursor: pointer;
   text-align: center;
-  padding: 2px 4px;
+  padding: 3px 5px;
 
   &:hover,
   &.active {
@@ -46,11 +61,14 @@ html,
 
   &-can {
     display: flex;
+    background-color: hsl(0deg 0% 100% / 62%);
+    margin-bottom: 5px;
   }
 }
 
 .slider {
   margin-top: 5px;
+  width: 200px;
 }
 
 .drop {
@@ -82,16 +100,27 @@ html,
     background-color: #1234567a;
   }
 }
+
+#wireframe-checkbox {
+  margin-right: 5px;
+}
 </style>
 
 <template>
+  <a
+    class="title"
+    href="https://github.com/deepkolos/compressed-model-diff"
+    draggable="false"
+    >Compressed-Model-Diff</a
+  >
   <canvas class="canvas" ref="canvas" />
 
-  <div class="setting">
+  <div class="setting" draggable="false">
     <div class="mode-can">
       <div
-        class="mode"
         v-for="mode in modeCfg.list"
+        draggable="false"
+        class="mode"
         :class="{
           active: mode === modeCfg.curr,
         }"
@@ -100,10 +129,14 @@ html,
         {{ mode }}
       </div>
     </div>
-    <div>
-      <input type="checkbox" v-model="modeCfg.wireframe" />网格
+    <label for="wireframe-checkbox">
+      <input
+        id="wireframe-checkbox"
+        type="checkbox"
+        v-model="modeCfg.wireframe"
+      />线框模式
       <!-- <input type="checkbox" v-model="modeCfg.point" />顶点-->
-    </div>
+    </label>
     <input
       class="slider"
       type="range"
@@ -114,7 +147,7 @@ html,
     />
   </div>
 
-  <div class="drop-can" :class="drop.can">
+  <div class="drop-can" :class="drop.can" draggable="false">
     <div
       class="drop"
       :ondragenter="() => (drop.left = 'enter')"
@@ -140,8 +173,11 @@ html,
 import { ref, onMounted, reactive, watchEffect } from 'vue';
 import {
   AmbientLight,
+  BoxBufferGeometry,
+  Color,
   DirectionalLight,
   Mesh,
+  MeshBasicMaterial,
   Object3D,
   OrthographicCamera,
   PerspectiveCamera,
@@ -164,7 +200,6 @@ export default {
     // const baseUrl = 'http://192.168.10.140:8080/';
     const baseUrl = 'http://127.0.0.1:8080/';
     const gltfLoader = new GLTFLoader();
-
     const canvas = ref<HTMLCanvasElement>();
     const modeCfg = reactive({
       wireframe: false,
@@ -214,8 +249,6 @@ export default {
       if (!drop.left && !drop.right) drop.can = '';
     });
 
-    gltfLoader.setMeshoptDecoder(MeshoptDecoder);
-
     const createDiffModeScene = (
       original: WebGLRenderTarget,
       diff: WebGLRenderTarget,
@@ -243,15 +276,35 @@ export default {
         void main() {
           vec4 originalColor = texture2D(originalTex, texcoord);
           vec4 diffColor = texture2D(diffTex, texcoord);
+          vec4 diff = originalColor - diffColor;
 
-          gl_FragColor = vec4((originalColor - diffColor).xyz, 1.0);
-          // gl_FragColor = texture2D(originalTex, texcoord);
-          // gl_FragColor = texture2D(diffTex, texcoord);
+          if (diff.x <= 0.001 && diff.y <= 0.001 && diff.z <= 0.001) {
+            gl_FragColor = vec4(0.0);
+          } else {
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+          }
         }
         `,
       });
       const mesh = new Mesh(geometry, material);
-      scene.add(mesh);
+
+      const geometryPreview = new BoxBufferGeometry(0.5, 0.5, 1, 1); // new PlaneBufferGeometry(1, 1, 1, 1);
+      const meshOriginal = new Mesh(
+        geometryPreview,
+        new MeshBasicMaterial({ map: original.texture }),
+      );
+      const meshDiff = new Mesh(
+        geometryPreview,
+        new MeshBasicMaterial({ map: diff.texture }),
+      );
+
+      const offset = (2 - 0.5) / 2;
+      meshOriginal.position.set(-offset, offset, 0);
+      meshDiff.position.set(offset, offset, 0);
+      meshDiff.scale.set(-1, -1, 1);
+      meshOriginal.scale.set(-1, -1, 1);
+
+      scene.add(mesh, meshOriginal, meshDiff);
       return scene;
     };
 
@@ -327,7 +380,9 @@ export default {
         uniform float slide;
 
         void main() {
-          gl_FragColor = normalize(texture2D(originalTex, texcoord) * slide + texture2D(diffTex, texcoord) * (1.0 - slide));
+          vec3 s_color = texture2D(originalTex, texcoord).xyz * slide;
+          vec3 d_color = texture2D(diffTex, texcoord).xyz * (1.0 - slide);
+          gl_FragColor = vec4(s_color + d_color, 1.0);
         }
         `,
       });
@@ -342,6 +397,7 @@ export default {
     };
 
     onMounted(async () => {
+      gltfLoader.setMeshoptDecoder(MeshoptDecoder);
       const renderer = new WebGL1Renderer({
         canvas: canvas.value,
         antialias: true,
@@ -409,7 +465,7 @@ export default {
             // child.material.map = null;
           }
         };
-        // 建立依赖关系
+        // 建立响应依赖的关系，因为reactive里面存储的对象也会被响应式化，但是由于场景是是否大的一棵树，所以不适合
         console.log(modelUpdate.original, modelUpdate.diff);
         originalModel?.scene.traverse(walker);
         diffModel?.scene.traverse(walker);
