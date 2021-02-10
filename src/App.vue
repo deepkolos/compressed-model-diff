@@ -214,7 +214,7 @@ html,
         :class="{
           active: mode === modeCfg.curr,
         }"
-        :onclick="() => (modeCfg.curr = mode)"
+        @click="() => (modeCfg.curr = mode)"
       >
         {{ mode }}
       </div>
@@ -265,19 +265,19 @@ html,
   <div class="drop-can" :class="drop.can" draggable="false">
     <div
       class="drop"
-      :ondragenter="() => (drop.left = 'enter')"
-      :ondragleave="() => (drop.left = '')"
-      :ondrop="onOriginalModelDrop"
       :class="drop.left"
+      @dragenter="() => (drop.left = 'enter')"
+      @dragleave="() => (drop.left = '')"
+      @drop="onOriginalModelDrop"
     >
       左模型
     </div>
     <div
       class="drop"
-      :ondragenter="() => (drop.right = 'enter')"
-      :ondragleave="() => (drop.right = '')"
-      :ondrop="onDiffModelDrop"
       :class="drop.right"
+      @dragenter="() => (drop.right = 'enter')"
+      @dragleave="() => (drop.right = '')"
+      @drop="onDiffModelDrop"
     >
       右模型
     </div>
@@ -319,16 +319,16 @@ const EXT_MAP: { [k: string]: string } = {
 export default {
   setup() {
     // const baseUrl = 'http://192.168.10.140:8080/';
-    const baseUrl = 'http://127.0.0.1:8080/';
+    // const baseUrl = 'http://127.0.0.1:8080/';
     const gltfLoader = new GLTFLoader();
     const dracoLoader = new DRACOLoader();
     dracoLoader.setDecoderPath('draco/');
 
     const canvas = ref<HTMLCanvasElement>();
     const modeCfg = reactive({
-      wireframe: false,
-      point: false,
-      slide: 50,
+      wireframe: 'false',
+      point: 'false',
+      slide: '50',
       curr: 'slide',
       list: ['diff', 'slide', 'onion'],
     });
@@ -488,7 +488,7 @@ export default {
       const mesh = new Mesh(geometry, material);
 
       watchEffect(() => {
-        material.uniforms.slide.value = modeCfg.slide / 100;
+        material.uniforms.slide.value = ~~modeCfg.slide / 100;
       });
 
       scene.add(mesh);
@@ -531,7 +531,7 @@ export default {
       const mesh = new Mesh(geometry, material);
 
       watchEffect(() => {
-        material.uniforms.slide.value = modeCfg.slide / 100;
+        material.uniforms.slide.value = ~~modeCfg.slide / 100;
       });
 
       scene.add(mesh);

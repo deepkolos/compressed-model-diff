@@ -14,13 +14,19 @@
 3. 三角面数量
 4. 依赖的扩展列表
 
+<div>
+  <img src="https://raw.githubusercontent.com/deepkolos/compressed-model-diff/master/screenshot/1.jpg" width="250" alt="" style="display:inline-block;"/>
+  <img src="https://raw.githubusercontent.com/deepkolos/compressed-model-diff/master/screenshot/3.jpg" width="250" alt="" style="display:inline-block;"/>
+  <img src="https://raw.githubusercontent.com/deepkolos/compressed-model-diff/master/screenshot/4.jpg" width="250" alt="" style="display:inline-block;"/>
+</div>
+
 ### 压缩工具
 
 KHR_draco_mesh_compression 可使用[gltf-pipeline](https://github.com/CesiumGS/gltf-pipeline)
 
 KHR_mesh_quantization 和 EXT_meshopt_compression 可使用[gltfpack](https://github.com/zeux/meshoptimizer)
 
-目前发现quantization的法线精度丢失会导致纹理偏了，因为只用了 4byte 存储
+目前发现 quantization 的法线精度丢失会导致纹理偏了，因为只用了 4byte 存储
 
 # TODO
 
