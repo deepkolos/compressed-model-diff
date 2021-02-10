@@ -11,6 +11,7 @@ html,
   width: 100%;
   height: 100%;
   user-select: none;
+  overflow: hidden;
 }
 
 #app {
@@ -140,18 +141,22 @@ html,
 }
 
 .usage {
-  position: absolute;
   padding: 20px;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   margin: auto;
-  width: min-content;
-  height: min-content;
   white-space: nowrap;
   background: #123456;
   color: white;
+
+  &-can {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 #wireframe-checkbox {
@@ -160,7 +165,7 @@ html,
 
 .fade {
   @duration: 0.53s;
-  @offsetY: 15%;
+  @offsetY: 2%;
 
   &-enter {
     &-active {
@@ -200,8 +205,8 @@ html,
   <canvas class="canvas" ref="canvas" />
 
   <transition name="fade" appear>
-    <div class="usage" v-if="!drop.leftFile && !drop.rightFile">
-      请把模型文件拖入左右两边
+    <div class="usage-can" v-if="!drop.leftFile && !drop.rightFile">
+      <div class="usage">请把模型文件拖入左右两边</div>
     </div>
   </transition>
 
