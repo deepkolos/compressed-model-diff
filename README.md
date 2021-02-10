@@ -1,6 +1,6 @@
 # compressed-model-diff
 
-一个用于对比模型压缩带来变化的工具[在线地址]()
+一个用于对比模型压缩带来变化的工具[在线地址](https://deepkolos.github.io/compressed-model-diff/index.html)
 
 比如使用 KHR_draco_mesh_compression、KHR_mesh_quantization、EXT_meshopt_compression 等压缩后，希望对比与压缩前渲染效果做对比
 
@@ -13,6 +13,8 @@
 2. 顶点数量
 3. 三角面数量
 4. 依赖的扩展列表
+
+## Demo
 
 <div>
   <img src="https://raw.githubusercontent.com/deepkolos/compressed-model-diff/master/screenshot/1.jpg" width="250" alt="" style="display:inline-block;"/>
