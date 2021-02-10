@@ -12,12 +12,15 @@
 1. 对象数量
 2. 顶点数量
 3. 三角面数量
+4. 依赖的扩展列表
 
 ### 压缩工具
 
 KHR_draco_mesh_compression 可使用[gltf-pipeline](https://github.com/CesiumGS/gltf-pipeline)
 
 KHR_mesh_quantization 和 EXT_meshopt_compression 可使用[gltfpack](https://github.com/zeux/meshoptimizer)
+
+目前发现quantization的法线精度丢失会导致纹理偏了，因为只用了 4byte 存储
 
 # TODO
 

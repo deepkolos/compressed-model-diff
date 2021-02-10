@@ -139,8 +139,54 @@ html,
   }
 }
 
+.usage {
+  position: absolute;
+  padding: 20px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  width: min-content;
+  height: min-content;
+  white-space: nowrap;
+  background: #123456;
+  color: white;
+}
+
 #wireframe-checkbox {
   margin-right: 5px;
+}
+
+.fade {
+  @duration: 0.53s;
+  @offsetY: 15%;
+
+  &-enter {
+    &-active {
+      opacity: 0;
+      transform: translateY(@offsetY);
+      transition: all ease @duration;
+    }
+
+    &-to {
+      transform: translateY(0%);
+      opacity: 1;
+    }
+  }
+
+  &-leave {
+    &-active {
+      opacity: 1;
+      transform: translateY(0%);
+      transition: all ease @duration;
+    }
+
+    &-to {
+      opacity: 0;
+      transform: translateY(-@offsetY);
+    }
+  }
 }
 </style>
 
@@ -152,6 +198,12 @@ html,
     >Compressed-Model-Diff</a
   >
   <canvas class="canvas" ref="canvas" />
+
+  <transition name="fade" appear>
+    <div class="usage" v-if="!drop.leftFile && !drop.rightFile">
+      请把模型文件拖入左右两边
+    </div>
+  </transition>
 
   <div class="setting" draggable="false">
     <div class="mode-can">
@@ -201,6 +253,13 @@ html,
     <div class="info-metrics">triangles</div>
     <div>{{ modelInfo.original.triangles }}</div>
     <div>{{ modelInfo.diff.triangles }}</div>
+    <div class="info-metrics">extensions</div>
+    <div>
+      <div v-for="ext in modelInfo.original.ext">{{ ext }}</div>
+    </div>
+    <div>
+      <div v-for="ext in modelInfo.diff.ext">{{ ext }}</div>
+    </div>
   </div>
 
   <div class="drop-can" :class="drop.can" draggable="false">
@@ -211,7 +270,7 @@ html,
       :ondrop="onOriginalModelDrop"
       :class="drop.left"
     >
-      原模型
+      左模型
     </div>
     <div
       class="drop"
@@ -220,7 +279,7 @@ html,
       :ondrop="onDiffModelDrop"
       :class="drop.right"
     >
-      对比模型
+      右模型
     </div>
   </div>
 </template>
@@ -230,7 +289,6 @@ import { ref, onMounted, reactive, watchEffect } from 'vue';
 import {
   AmbientLight,
   BoxBufferGeometry,
-  Color,
   DirectionalLight,
   Mesh,
   MeshBasicMaterial,
@@ -249,12 +307,23 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 // @ts-ignore
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
+
+const EXT_MAP: { [k: string]: string } = {
+  KHR_draco_mesh_compression: 'draco',
+  KHR_texture_transform: 'texture_transform',
+  KHR_mesh_quantization: 'quantization',
+  EXT_meshopt_compression: 'meshopt',
+};
 
 export default {
   setup() {
     // const baseUrl = 'http://192.168.10.140:8080/';
     const baseUrl = 'http://127.0.0.1:8080/';
     const gltfLoader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('draco/');
+
     const canvas = ref<HTMLCanvasElement>();
     const modeCfg = reactive({
       wireframe: false,
@@ -267,8 +336,10 @@ export default {
       left: '',
       right: '',
       can: '',
-      leftFile: baseUrl + 'PrimaryIonDrive.glb',
-      rightFile: baseUrl + 'PrimaryIonDrive-EXT_MESH_QUANTIZATION.glb',
+      leftFile: '',
+      rightFile: '',
+      // leftFile: baseUrl + 'PrimaryIonDrive.glb',
+      // rightFile: baseUrl + 'PrimaryIonDrive-EXT_MESH_QUANTIZATION.glb',
     });
     const modelUpdate = reactive({
       original: 0,
@@ -280,12 +351,14 @@ export default {
         objects: 0,
         vertices: 0,
         triangles: 0,
+        ext: [],
       },
       diff: {
         size: 0,
         objects: 0,
         vertices: 0,
         triangles: 0,
+        ext: [],
       },
     });
 
@@ -350,7 +423,7 @@ export default {
           if (diff.x <= 0.001 && diff.y <= 0.001 && diff.z <= 0.001) {
             gl_FragColor = vec4(0.0);
           } else {
-            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            gl_FragColor = vec4(vec3(diff.x + diff.y + diff.z), 1.0);
           }
         }
         `,
@@ -468,6 +541,7 @@ export default {
     onMounted(async () => {
       const { innerWidth: w, innerHeight: h } = window;
       gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+      gltfLoader.setDRACOLoader(dracoLoader);
       const renderer = new WebGL1Renderer({
         canvas: canvas.value,
         antialias: true,
@@ -512,25 +586,34 @@ export default {
       let diffModel: GLTF;
 
       watchEffect(() => {
-        gltfLoader
-          .loadAsync(drop.leftFile, e => (modelInfo.original.size = e.total))
-          .then(model => {
-            if (originalModel) originalScene.remove(originalModel.scene);
-            originalModel = model;
-            originalScene.add(model.scene);
-            modelUpdate.original++;
-          });
+        drop.leftFile &&
+          gltfLoader
+            .loadAsync(drop.leftFile, e => (modelInfo.original.size = e.total))
+            .then(model => {
+              if (originalModel) originalScene.remove(originalModel.scene);
+              originalModel = model;
+              originalScene.add(model.scene);
+              modelUpdate.original++;
+
+              modelInfo.original.ext = (
+                model.parser.json.extensionsUsed || []
+              ).map((i: string) => EXT_MAP[i] || i);
+            });
       });
 
       watchEffect(async () => {
-        gltfLoader
-          .loadAsync(drop.rightFile, e => (modelInfo.diff.size = e.total))
-          .then(model => {
-            if (diffModel) diffScene.remove(diffModel.scene);
-            diffModel = model;
-            diffScene.add(model.scene);
-            modelUpdate.diff++;
-          });
+        drop.rightFile &&
+          gltfLoader
+            .loadAsync(drop.rightFile, e => (modelInfo.diff.size = e.total))
+            .then(model => {
+              if (diffModel) diffScene.remove(diffModel.scene);
+              diffModel = model;
+              diffScene.add(model.scene);
+              modelUpdate.diff++;
+              modelInfo.diff.ext = (model.parser.json.extensionsUsed || []).map(
+                (i: string) => EXT_MAP[i] || i,
+              );
+            });
       });
 
       watchEffect(() => {
