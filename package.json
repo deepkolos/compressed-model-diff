@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "three": "^0.125.2",
+    "three-platformize": "^1.0.10",
     "vue": "^3.0.5"
   },
   "devDependencies": {

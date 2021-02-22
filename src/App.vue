@@ -135,7 +135,7 @@ html,
     text-align: right;
 
     &::after {
-      content: ':';
+      content: ":";
     }
   }
 }
@@ -200,8 +200,7 @@ html,
     class="title"
     href="https://github.com/deepkolos/compressed-model-diff"
     draggable="false"
-    >Compressed-Model-Diff</a
-  >
+  >Compressed-Model-Diff</a>
   <canvas class="canvas" ref="canvas" />
 
   <transition name="fade" appear>
@@ -220,26 +219,13 @@ html,
           active: mode === modeCfg.curr,
         }"
         @click="() => (modeCfg.curr = mode)"
-      >
-        {{ mode }}
-      </div>
+      >{{ mode }}</div>
     </div>
     <label for="wireframe-checkbox">
-      <input
-        id="wireframe-checkbox"
-        type="checkbox"
-        v-model="modeCfg.wireframe"
-      />线框模式
+      <input id="wireframe-checkbox" type="checkbox" v-model="modeCfg.wireframe" />线框模式
       <!-- <input type="checkbox" v-model="modeCfg.point" />顶点-->
     </label>
-    <input
-      class="slider"
-      type="range"
-      min="0"
-      max="100"
-      step="1"
-      v-model="modeCfg.slide"
-    />
+    <input class="slider" type="range" min="0" max="100" step="1" v-model="modeCfg.slide" />
   </div>
 
   <div class="info-can">
@@ -249,6 +235,9 @@ html,
     <div class="info-metrics">size</div>
     <div>{{ (modelInfo.original.size / 1024 / 1024).toFixed(2) }}MB</div>
     <div>{{ (modelInfo.diff.size / 1024 / 1024).toFixed(2) }}MB</div>
+    <div class="info-metrics">load</div>
+    <div>{{ modelInfo.original.loadTime }}ms</div>
+    <div>{{ modelInfo.diff.loadTime }}ms</div>
     <div class="info-metrics">objects</div>
     <div>{{ modelInfo.original.objects }}</div>
     <div>{{ modelInfo.diff.objects }}</div>
@@ -274,18 +263,14 @@ html,
       @dragenter="() => (drop.left = 'enter')"
       @dragleave="() => (drop.left = '')"
       @drop="onOriginalModelDrop"
-    >
-      左模型
-    </div>
+    >左模型</div>
     <div
       class="drop"
       :class="drop.right"
       @dragenter="() => (drop.right = 'enter')"
       @dragleave="() => (drop.right = '')"
       @drop="onDiffModelDrop"
-    >
-      右模型
-    </div>
+    >右模型</div>
   </div>
 </template>
 
@@ -307,12 +292,17 @@ import {
   Vector2,
   WebGL1Renderer,
   WebGLRenderTarget,
-} from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+  PLATFORM,
+} from 'three-platformize';
+import { OrbitControls } from 'three-platformize/examples/jsm/controls/OrbitControls';
+import { GLTF, GLTFLoader } from 'three-platformize/examples/jsm/loaders/GLTFLoader';
 // @ts-ignore
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
+import { MeshoptDecoder } from 'three-platformize/examples/jsm/libs/meshopt_decoder.module';
+// import { MeshoptDecoder } from 'three-platformize/tools/meshopt_decoder.asm.module';
+import { DRACOLoader } from 'three-platformize/examples/jsm/loaders/DRACOLoader';
+import { BrowserPlatform } from 'three-platformize/src/BrowserPlatform'
+
+PLATFORM.set(new BrowserPlatform())
 
 const EXT_MAP: { [k: string]: string } = {
   KHR_draco_mesh_compression: 'draco',
@@ -356,6 +346,7 @@ export default {
         objects: 0,
         vertices: 0,
         triangles: 0,
+        loadTime: 0,
         ext: [],
       },
       diff: {
@@ -363,6 +354,7 @@ export default {
         objects: 0,
         vertices: 0,
         triangles: 0,
+        loadTime: 0,
         ext: [],
       },
     });
@@ -567,7 +559,7 @@ export default {
       const drawRect = new Vector2();
       renderer.getDrawingBufferSize(drawRect);
 
-      const camera = new PerspectiveCamera(75, w / h, 0.1, 1000);
+      const camera = new PerspectiveCamera(75, w / h, 0.01, 1000);
       const flatCamera = new OrthographicCamera(-1, 1, -1, 1, 0.1, 1000);
       camera.position.z = 0.2;
 
@@ -591,10 +583,12 @@ export default {
       let diffModel: GLTF;
 
       watchEffect(() => {
+        const t = Date.now()
         drop.leftFile &&
           gltfLoader
             .loadAsync(drop.leftFile, e => (modelInfo.original.size = e.total))
             .then(model => {
+              modelInfo.original.loadTime = Date.now() - t
               if (originalModel) originalScene.remove(originalModel.scene);
               originalModel = model;
               originalScene.add(model.scene);
@@ -607,10 +601,12 @@ export default {
       });
 
       watchEffect(async () => {
+        const t = Date.now()
         drop.rightFile &&
           gltfLoader
             .loadAsync(drop.rightFile, e => (modelInfo.diff.size = e.total))
             .then(model => {
+              modelInfo.diff.loadTime = Date.now() - t
               if (diffModel) diffScene.remove(diffModel.scene);
               diffModel = model;
               diffScene.add(model.scene);
