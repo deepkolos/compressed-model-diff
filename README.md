@@ -30,6 +30,8 @@ KHR_mesh_quantization 和 EXT_meshopt_compression 可使用[gltfpack](https://gi
 
 目前发现 quantization 的法线精度丢失会导致纹理偏了，因为只用了 4byte 存储
 
+关于更详细的压缩工具可用性测评可阅读[【网格压缩测评】MeshQuan、MeshOpt、Draco ](https://juejin.cn/post/6931954784018628621)
+
 # TODO
 
 0. 计算相机的初始位置
